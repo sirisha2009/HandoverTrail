@@ -65,7 +65,7 @@ export default function Home() {
       </section>
       <section className="sec">
         <h2 className="reveal">Why it is different</h2>
-        <p className="sub reveal">Not another summariser. A handover that shows how sure it is.</p>
+      
         <div className="g3">
           <Tilt><Doodle k="search" /><h3>Confidence on every claim</h3><p>Verified, Unverified or Conflicting, with the exact source snippet highlighted.</p></Tilt>
           <Tilt><Doodle k="check" /><h3>Human in control</h3><p>Nothing is shared until a reviewer approves, edits or rejects it.</p></Tilt>
@@ -76,7 +76,6 @@ export default function Home() {
         <Doodle k="star" /><h2>Try the handover yourself</h2><p className="sub">Load a sample project, review the claims and publish a handover.</p>
         <Link className="btn" href="/demo">Open the demo</Link>
       </section>
-      <p className="foot">HandoverTrail · built for the CodePuneThinkers Hackathon · demo uses synthetic data</p>
     </main>
   );
 }
