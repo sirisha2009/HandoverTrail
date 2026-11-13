@@ -42,7 +42,7 @@ export default function Home() {
       <section className="hero">
         <Scene /><div className="vig" /><div className="beam a" /><div className="beam b" />
         <div className="htxt">
-          <div className="tag">CODEPUNETHINKERS · ROUND 2</div>
+          
           <h1>Never lose project knowledge <span className="und amber">when someone leaves.<svg viewBox="0 0 300 20" className="doodle draw" preserveAspectRatio="none"><path d="M5 12 C 40 2, 70 20, 110 10 S 190 2, 230 12 S 280 14, 295 6" /></svg></span></h1>
           <p className="lead">HandoverTrail turns scattered notes, tasks and chats into a handover you can trust. Every claim is traceable to its source, uncertainty is flagged, and a person makes the final call.</p>
           <div className="btns"><Link className="btn" href="/demo">Open the demo</Link><a className="btn ghost" href="#how">How it works</a></div>
