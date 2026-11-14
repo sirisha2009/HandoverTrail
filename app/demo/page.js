@@ -22,6 +22,9 @@ export default function Demo() {
   const [draft, setDraft] = useState("");
   const [version, setVersion] = useState(0);
   const [acked, setAcked] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareErr, setShareErr] = useState("");
+  const [link, setLink] = useState("");
 
   async function run(list) {
     setLoading(true); setErr("");
@@ -34,6 +37,17 @@ export default function Demo() {
     setLoading(false);
   }
   const offline = () => { setSrcs(sources); setClaims(mockClaims.map((c) => ({ ...c, status: "pending" }))); setMeta("Offline sample output. The AI was not used."); setErr(""); };
+  async function share() {
+    setShareUrl(""); setShareErr("");
+    try {
+      const list = claims.filter((c) => c.status === "approved" && !c.confidential).map((c) => ({ ...c, sourceTitle: srcOf(c.sourceId)?.title || "" }));
+      const r = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ claims: list, version }) });
+      const d = await r.json();
+      if (!r.ok || !d.path) throw new Error(d.error || "Could not create the link.");
+      setShareUrl(window.location.origin + d.path);
+    } catch (e) { setShareErr(e.message); }
+  }
+  const openLink = () => { const k = link.indexOf("/handover/"); if (k < 0) return; window.location.href = link.slice(k).trim(); };
   const reset = () => { setClaims(null); setVersion(0); setAcked(false); setOpenId(null); setMeta(""); };
   const set = (id, patch) => setClaims(claims.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const pending = claims ? claims.filter((c) => c.status === "pending").length : 0;
@@ -49,7 +63,7 @@ export default function Demo() {
         {role && (
           <div className="row" style={{ margin: 0 }}>
             <span className="badge type">Viewing as: {role === "lead" ? "Project lead" : "Joiner"}</span>
-            <button className="btn sm ghost" onClick={() => setRole(null)}>Switch role</button>
+            {role === "lead" && <button className="btn sm ghost" onClick={() => setRole(null)}>Switch role</button>}
           </div>
         )}
       </div>
@@ -129,15 +143,27 @@ export default function Demo() {
             </div>
           </div>
         )}
-        {role === "joiner" && version === 0 && (
-          <div className="card"><h2 style={{ marginTop: 0 }}>No handover shared with you yet</h2><p className="mute">The project lead has not published a handover. Joiners only see an approved handover, never the raw review list. Switch to Project lead to review and publish one.</p></div>
+        {role === "joiner" && (
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Open your handover</h2>
+            <p className="mute">Joiners receive a private link from the project lead. Paste it here. You only ever see the approved handover, never the review workspace or confidential items.</p>
+            <textarea rows={3} value={link} onChange={(e) => setLink(e.target.value)} placeholder="Paste the handover link here..." />
+            <div className="row"><button className="btn" disabled={!link.includes("/handover/")} onClick={openLink}>Open handover</button></div>
+          </div>
         )}
-        {role && version > 0 && (
+        {role === "lead" && version > 0 && (
           <div className="card" style={{ marginTop: 20 }}>
-            <h2 style={{ marginTop: 0 }}>Handover v{version} ({role === "lead" ? "Project lead view" : "Joiner view"})</h2>
+            <h2 style={{ marginTop: 0 }}>Handover v{version} (Project lead preview)</h2>
             {types.map((t) => { const items = approved.filter((c) => c.type === t); return items.length ? (
-              <div key={t}><strong>{t}s</strong><ul>{items.map((c) => <li key={c.id}>{c.text} <span className="mute">[{srcOf(c.sourceId)?.title || "no source"}]</span></li>)}</ul></div>) : null; })}
-            {acked ? <p className="ok">Receipt acknowledged.</p> : <button className="btn" onClick={() => setAcked(true)}>Acknowledge receipt</button>}
+              <div key={t}><strong>{t}s</strong><ul>{items.map((c) => <li key={c.id}>{c.text} {c.confidential && <span className="badge conf">confidential</span>}<span className="mute">[{srcOf(c.sourceId)?.title || "no source"}]</span></li>)}</ul></div>) : null; })}
+            <p className="mute">Confidential items are visible to you but are removed from the link that goes to the joiner.</p>
+            <button className="btn" onClick={share}>Create share link for the joiner</button>
+            {shareErr && <p className="mute" style={{ color: "var(--red)" }}>{shareErr}</p>}
+            {shareUrl && (<div className="card" style={{ marginTop: 12 }}>
+              <p className="mute">Joiner link (approved, non-confidential items only):</p>
+              <textarea readOnly rows={3} value={shareUrl} onFocus={(e) => e.target.select()} />
+              <div className="row"><a className="btn sm amb" href={shareUrl} target="_blank" rel="noreferrer">Open joiner view</a></div>
+            </div>)}
           </div>
         )}
       </div>
