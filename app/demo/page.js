@@ -16,7 +16,7 @@ export default function Demo() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [meta, setMeta] = useState("");
-  const [role, setRole] = useState("lead");
+  const [role, setRole] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState("");
@@ -46,14 +46,33 @@ export default function Demo() {
     <main>
       <div className="top">
         <Link href="/"><strong>HandoverTrail</strong></Link>
-        <div className="row" style={{ margin: 0 }}>
-          <span className="mute">View as:</span>
-          <button className={"step" + (role === "lead" ? " on" : "")} onClick={() => setRole("lead")}>Project lead</button>
-          <button className={"step" + (role === "joiner" ? " on" : "")} onClick={() => setRole("joiner")}>Joiner</button>
-        </div>
+        {role && (
+          <div className="row" style={{ margin: 0 }}>
+            <span className="badge type">Viewing as: {role === "lead" ? "Project lead" : "Joiner"}</span>
+            <button className="btn sm ghost" onClick={() => setRole(null)}>Switch role</button>
+          </div>
+        )}
       </div>
       <div className="wrap">
-        {!claims && (
+        {!role && (
+          <div>
+            <h2 style={{ marginTop: 0 }}>Who is viewing?</h2>
+            <p className="mute">Choose a role to continue. In a real deployment the role would come from the user's login and permissions. Your session is kept when you switch roles, so a lead can publish and then check the joiner's view.</p>
+            <div className="row" style={{ alignItems: "stretch" }}>
+              <div className="card" style={{ flex: "1 1 280px" }}>
+                <strong>Project lead</strong>
+                <p className="mute">Reconstructs the project, reviews and approves claims, and publishes the handover. Sees everything, including confidential items.</p>
+                <button className="btn" onClick={() => setRole("lead")}>Continue as Project lead</button>
+              </div>
+              <div className="card" style={{ flex: "1 1 280px" }}>
+                <strong>Joiner</strong>
+                <p className="mute">Takes over the work. Sees only the approved handover. Confidential items stay hidden.</p>
+                <button className="btn amb" onClick={() => setRole("joiner")}>Continue as Joiner</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {role === "lead" && !claims && (
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Step 1. Connect sources</h2>
             <p className="mute">Sample project: 4 sources (notes, task board, private chat). Click below to reconstruct the project state.</p>
@@ -66,7 +85,7 @@ export default function Demo() {
             {err && <div className="card" style={{ marginTop: 12 }}><p className="mute" style={{ color: "var(--red)" }}>{err}</p><button className="btn sm ghost" onClick={offline}>Show the offline sample instead</button></div>}
           </div>
         )}
-        {claims && (
+        {role === "lead" && claims && (
           <div className="two">
             <div>
               <h2 style={{ marginTop: 0 }}>Review claims</h2>
@@ -110,7 +129,10 @@ export default function Demo() {
             </div>
           </div>
         )}
-        {version > 0 && (
+        {role === "joiner" && version === 0 && (
+          <div className="card"><h2 style={{ marginTop: 0 }}>No handover shared with you yet</h2><p className="mute">The project lead has not published a handover. Joiners only see an approved handover, never the raw review list. Switch to Project lead to review and publish one.</p></div>
+        )}
+        {role && version > 0 && (
           <div className="card" style={{ marginTop: 20 }}>
             <h2 style={{ marginTop: 0 }}>Handover v{version} ({role === "lead" ? "Project lead view" : "Joiner view"})</h2>
             {types.map((t) => { const items = approved.filter((c) => c.type === t); return items.length ? (
