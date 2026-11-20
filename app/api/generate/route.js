@@ -55,6 +55,7 @@ export async function POST(req) {
 
   let lastErr = "Generation failed.";
   let rateLimited = false;
+  const tried = []; // real error from each model, shown so we can see what is wrong
 
   for (const model of MODELS) {
     try {
@@ -72,16 +73,16 @@ export async function POST(req) {
         }
       );
 
-      if (res.status === 404 || res.status === 400) {
-        lastErr = `Model ${model} was not accepted.`;
-        continue;
-      }
-      if (res.status === 429) {
-        rateLimited = true; // try the next model instead of stopping
-        continue;
-      }
       if (!res.ok) {
-        lastErr = `The AI service returned an error (${res.status}).`;
+        const detail = await res.text().catch(() => "");
+        let msg = "";
+        try {
+          msg = JSON.parse(detail)?.error?.message || "";
+        } catch {}
+        console.error(`Gemini ${model} returned ${res.status}:`, detail.slice(0, 500));
+        tried.push(`${model}: ${res.status} ${msg}`.slice(0, 160));
+        if (res.status === 429) rateLimited = true;
+        lastErr = `The AI service did not accept the request.`;
         continue;
       }
 
@@ -103,5 +104,6 @@ export async function POST(req) {
       { status: 429 }
     );
   }
-  return NextResponse.json({ error: lastErr }, { status: 502 });
+  const details = tried.length ? " Details: " + tried.join(" | ") : "";
+  return NextResponse.json({ error: lastErr + details }, { status: 502 });
 }
