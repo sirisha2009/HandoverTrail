@@ -13,7 +13,7 @@ Return ONLY a JSON array of up to 6 items: {"question","reason","type"}.
 - type: one of Decision, Owner, Blocker, Risk, Next action, Contact, the kind of claim a good answer would become.
 Do not ask about things that are already clearly answered. Do not invent facts.`;
 
-const MODELS = [...new Set([process.env.GEMINI_MODEL, "gemini-3.8-flash", "gemini-3.5-flash"].filter(Boolean))];
+const MODELS = [...new Set([process.env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"].filter(Boolean))];
 
 export async function POST(req) {
   try {
@@ -29,20 +29,47 @@ export async function POST(req) {
       return NextResponse.json({ error: "Bad request." }, { status: 400 });
     }
 
-    // Call your Gemini API logic here safely...
-    // If an error happens during the AI generation, it will be caught below.
+    const prompt = `${SYSTEM}\n\nSources & Claims:\n${JSON.stringify(body)}`;
+    let lastError = "AI service unavailable.";
 
-    return NextResponse.json({ success: true, gaps: [] });
+    for (const model of MODELS) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          }
+        );
 
-  } catch (error) {
-    console.error("Gaps API Error:", error);
-    // Always return JSON so the client never hits a JSON parsing crash
+        if (!res.ok) {
+          lastError = `Model ${model} returned ${res.status}`;
+          continue;
+        }
+
+        const data = await res.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+        const parsed = JSON.parse(rawText);
+        const questions = typeof cleanQuestions === "function" ? cleanQuestions(parsed) : parsed;
+
+        return NextResponse.json({ questions });
+      } catch (err) {
+        lastError = err.message;
+      }
+    }
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: "AI service is currently busy or rate-limited. Please use the offline sample fallback." 
-      }, 
+      { error: `AI service is busy (${lastError}). Please try again or use the offline sample.` },
       { status: 503 }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Unexpected server error. Please try again." },
+      { status: 500 }
     );
   }
 }
