@@ -67,8 +67,7 @@ export async function POST(req) {
 
   for (const model of MODELS) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      // stay inside the 60 second function limit
-      if (Date.now() - started > 45000) break;
+    if (Date.now() - started > 50000) break;
 
       try {
         const res = await fetch(
@@ -76,7 +75,7 @@ export async function POST(req) {
           {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-            signal: AbortSignal.timeout(15000),
+            signal: AbortSignal.timeout(Math.max(5000, Math.min(40000, 55000 - (Date.now() - started)))),,
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: SYSTEM }] },
               contents: [{ role: "user", parts: [{ text: userText }] }],
