@@ -13,9 +13,8 @@ Return ONLY a JSON array. Each item: {"type","text","sourceId","snippet","confid
 - snippet: an EXACT quote copied word for word from that source (max 200 characters). Never paraphrase it.
 - confidence: "verified" if the quote directly supports the claim, "conflicting" if another source says something different, otherwise "unverified".
 - note: explain a conflict, or a missing reason or missing owner. Otherwise an empty string.
-Rules: do not invent facts. If something is unclear or no source supports it, say so in note and use "unverified". If two sources contradict, output both claims as "conflicting" and say which seems newer. Flag decisions that have no recorded reason. Output 5 to 20 claims.`;
+Rules: do not invent facts. If something is unclear or no source supports it, say so in note and use "unverified". If two sources contradict, output both claims as "conflicting" and say which seems newer. Flag decisions that have no recorded reason. Output 6 to 10 claims. Keep every note under 20 words.`;
 
-// Current models only. The 2.x models now return 404.
 const MODELS = [
   ...new Set(
     [process.env.GEMINI_MODEL, "gemini-3.8-flash", "gemini-3.5-flash"].filter(Boolean)
@@ -67,7 +66,9 @@ export async function POST(req) {
 
   for (const model of MODELS) {
     for (let attempt = 0; attempt < 2; attempt++) {
-    if (Date.now() - started > 50000) break;
+      const elapsed = Date.now() - started;
+      if (elapsed > 50000) break;
+      const timeoutMs = Math.max(5000, Math.min(40000, 55000 - elapsed));
 
       try {
         const res = await fetch(
@@ -75,11 +76,15 @@ export async function POST(req) {
           {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-            signal: AbortSignal.timeout(Math.max(5000, Math.min(40000, 55000 - (Date.now() - started)))),,
+            signal: AbortSignal.timeout(timeoutMs),
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: SYSTEM }] },
               contents: [{ role: "user", parts: [{ text: userText }] }],
-              generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+              generationConfig: {
+                temperature: 0.1,
+                responseMimeType: "application/json",
+                maxOutputTokens: 4096,
+              },
             }),
           }
         );
@@ -89,16 +94,16 @@ export async function POST(req) {
           console.error(`Gemini ${model} returned ${res.status}:`, detail.slice(0, 500));
           if (res.status === 429) {
             rateLimited = true;
-            break; // try next model
+            break;
           }
           if (res.status === 503) {
             busy = true;
             if (attempt === 0) {
               await sleep(1500);
-              continue; // retry the same model once
+              continue;
             }
           }
-          break; // 404 or other error: next model
+          break;
         }
 
         const data = await res.json();
@@ -109,7 +114,7 @@ export async function POST(req) {
         console.error(`Gemini ${model} failed:`, e?.name, e?.message);
         if (e?.name === "TimeoutError") busy = true;
         else unreadable = true;
-        break; // next model
+        break;
       }
     }
   }
