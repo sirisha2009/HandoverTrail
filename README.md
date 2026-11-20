@@ -1,59 +1,62 @@
-# HandoverTrail
+# Handover Trail
 
-Evidence-linked, permission-aware knowledge handover. When a team member leaves, HandoverTrail turns scattered project activity (notes, tasks, chats) into a handover where every claim links to its source, uncertainty is flagged, a human approves it, and the incoming person only sees what they are allowed to see.
+**Evidence-linked, permission-aware knowledge handover.**  
+Built for the **CodePune Thinkers Hackathon** (Round 3 Finalist — Top 50) by **Sirisha Arora** (`HandoverTrail`).
 
-Built solo for the CodePuneThinkers Hackathon (Round 2).
+- **Live Product:** [https://handovertrail.vercel.app](https://handovertrail.vercel.app) (Demo at `/demo`)
+- **Judge Demo Account:** `judge.demo@handovertrail.dev` Password: 123456 (Sign-up is also open)
 
-**Live demo:** https://handovertrail.vercel.app (open `/demo`, no sign-in needed)
+---
 
-## How it works
+## Overview
 
-1. **Connect:** load the built-in synthetic project, or paste your own notes (synthetic or permissioned text only).
-2. **Reconstruct:** the Gemini API extracts decisions, owners, blockers, risks, next actions and contacts as structured claims.
-3. **Verify:** the server re-checks each quoted snippet against the real source text. Not found means Unverified. Contradictions are flagged Conflicting.
-4. **Review:** the project lead approves, edits or rejects every claim, with the exact evidence highlighted.
-5. **Handover:** the lead creates a signed share link. The server includes only approved, non-confidential claims. The joiner opens it and acknowledges receipt.
+When a team member leaves a project, critical context gets scattered across meeting notes, tasks, chat logs, and repositories. **Handover Trail** ingests authorized project sources, reconstructs structured claims (decisions, owners, blockers, risks, next actions, and contacts), and anchors every claim to an exact quote in the original source.
 
-## Try it (3 minutes)
+- **Zero Blind Trust:** Server-side verification re-checks every AI-extracted quote against the actual source text. Unmatched quotes are flagged as `Unverified`, and contradictions are flagged as `Conflicting`.
+- **Gap Capture:** Targeted questions surface missing owners, reasons, or open context for the departing member to answer as first-hand claims.
+- **Controlled Sharing:** A human lead reviews, edits, approves, or rejects every claim. The server strips all confidential, rejected, and pending items before generating a tamper-evident **HMAC-SHA256** share link for the incoming team member.
 
-1. Open `/demo`, choose **Project lead**, click **Generate handover**.
-2. Click a claim to see its highlighted source. Approve, edit or reject each claim.
-3. Click **Publish handover**, then **Create share link for the joiner**, then **Open joiner view**.
-4. Check that confidential, rejected and pending claims are missing, then click **Acknowledge receipt**.
+---
 
-## Tech stack
+## Key Features
 
-Next.js 14 and React 18 (pages and API routes), Google Gemini API (claim extraction), three.js (landing-page scene), Node crypto HMAC-SHA256 (signed links), Vercel (hosting), GitHub.
+- **Multi-Source Ingestion:** Built-in synthetic project, paste-your-own-notes (up to 30,000 characters), and public GitHub repository import (commits, issues, and pull requests with direct source URLs).
+- **Evidence-Linked Extraction:** Powered by Google Gemini (`gemini-3.8-flash` with fallback to `gemini-3.5-flash`) to extract structured claims with exact source citations.
+- **Server-Side Verification (`verify.js`):** Independently validates quotes against source text, coerces unknown types, flags conflicts, and enforces source-level confidentiality flags.
+- **Targeted Gap Questions (`/api/gaps`):** Identifies missing context and turns the leaver's answers into verified first-hand claims.
+- **Human-in-the-Loop Review:** Approve, edit, or reject claims in an interactive evidence workspace; publishing requires zero pending claims.
+- **Role-Based Access & Persistence:** Authenticated `Project Lead` and `Joiner` roles backed by Supabase Auth & Postgres, with saved handover versions (`My handovers`) and an audit log of review actions.
+- **Signed Share Links (`/api/share`):** Generates HMAC-SHA256 signed URLs containing only approved, non-confidential claims, plus joiner receipt acknowledgement.
+- **Resilient Failure Handling:** Per-model timeouts, 503 retries, clean JSON error boundaries, and a built-in **offline sample fallback** so evaluation never dead-ends on free-tier API rate limits.
 
-## Run it yourself
+---
 
-```
-npm install
-GEMINI_API_KEY=your_key npm run dev
-```
+## Quick Judge Walkthrough (~3 Minutes)
 
-Optional environment variables: `GEMINI_MODEL` (preferred model name), `SHARE_SECRET` (signing secret for share links; falls back to the API key).
-Never commit your API key.
+1. Open `/demo`, sign in (e.g., `judge.demo@handovertrail.dev`), and select **Project lead**.
+2. Click **Generate handover** on the sample project, paste your own notes, or import a public GitHub repo (such as `sirisha2009/HandoverTrail`). *(If the AI service is rate-limited, click **Show the offline sample instead** to continue seamlessly.)*
+3. Click any claim or **View source** to inspect the exact highlighted quote in the original document.
+4. Click **Find gaps** and answer a prompt to add a first-hand claim.
+5. Approve, edit, or reject all claims, then click **Publish handover**.
+6. Generate a share link, open the joiner view in a new tab/window to verify confidential and rejected items are stripped, and click **Acknowledge receipt**.
+7. Visit **My handovers** to view saved versions.
 
-## Design decisions
+---
 
-- The AI is not trusted: "Verified" means code found the quote in the source.
-- Permissions are enforced on the server: the confidential flag comes from the source, and the share endpoint removes those claims before a link exists.
-- No database in Round 2: nothing is stored on the server, and sharing is stateless through signed links.
+## Tech Stack
 
-## Known limitations
+- **Framework:** Next.js 14 / React 18 (App Router & API Routes)
+- **AI Models:** Google Gemini API (`gemini-3.8-flash`, `gemini-3.5-flash`)
+- **Database & Auth:** Supabase (PostgreSQL, Row-Level Security, Auth)
+- **Security:** Node `crypto` (HMAC-SHA256 signed payloads & server-side permission filtering)
+- **Frontend Visuals:** Three.js (3D interactive landing page)
+- **Deployment:** Vercel
 
-- No login yet (planned). Anyone can open `/demo`, but they only see their own session data.
-- Handover version numbers live in the browser session only.
-- Share links carry the data and are limited to 25 items of 200 characters each.
-- Conflict detection depends on the AI model and is always reviewed by a human.
+---
 
-## Roadmap (Round 3)
+## Local Setup
 
-1. Gap questions for the leaver, whose answers become new evidence-linked claims.
-2. Real GitHub repository import with citations to commits and issues.
-3. Persistent versions, login with roles, an audit log and revocable share links.
-
-## AI assistance disclosure
-
-Significant parts of the code and documents were produced with AI assistance (Claude by Anthropic). The participant directed the product, integrated, deployed and tested it. Claim extraction in the product uses the Google Gemini API. Demo data is entirely synthetic.
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/sirisha2009/HandoverTrail.git](https://github.com/sirisha2009/HandoverTrail.git)
+   cd HandoverTrail
