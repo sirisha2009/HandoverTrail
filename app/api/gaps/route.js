@@ -13,7 +13,7 @@ Return ONLY a JSON array of up to 6 items: {"question","reason","type"}.
 - type: one of Decision, Owner, Blocker, Risk, Next action, Contact, the kind of claim a good answer would become.
 Do not ask about things that are already clearly answered. Do not invent facts.`;
 
-const MODELS = [process.env.GEMINI_MODEL, "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"].filter(Boolean);
+const MODELS = [...new Set([process.env.GEMINI_MODEL, "gemini-3.8-flash", "gemini-3.5-flash"].filter(Boolean))];
 
 export async function POST(req) {
   const key = process.env.GEMINI_API_KEY;
