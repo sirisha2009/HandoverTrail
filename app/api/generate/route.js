@@ -15,7 +15,14 @@ Return ONLY a JSON array. Each item: {"type","text","sourceId","snippet","confid
 - note: explain a conflict, or a missing reason or missing owner. Otherwise an empty string.
 Rules: do not invent facts. If something is unclear or no source supports it, say so in note and use "unverified". If two sources contradict, output both claims as "conflicting" and say which seems newer. Flag decisions that have no recorded reason. Output 5 to 20 claims.`;
 
-const MODELS = [process.env.GEMINI_MODEL, "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"].filter(Boolean);
+// Current models only. The 2.x models now return 404.
+const MODELS = [
+  ...new Set(
+    [process.env.GEMINI_MODEL, "gemini-3.8-flash", "gemini-3.5-flash"].filter(Boolean)
+  ),
+];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req) {
   const key = process.env.GEMINI_API_KEY;
@@ -53,48 +60,58 @@ export async function POST(req) {
     .map((s) => `### SOURCE id=${s.id} title="${String(s.title || s.id).slice(0, 80)}"\n${s.text}`)
     .join("\n\n");
 
-  let lastErr = "Generation failed.";
+  const started = Date.now();
   let rateLimited = false;
-  const tried = []; // real error from each model, shown so we can see what is wrong
+  let busy = false;
+  let unreadable = false;
 
   for (const model of MODELS) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          signal: AbortSignal.timeout(20000), // give up on one model after 20 seconds
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: SYSTEM }] },
-            contents: [{ role: "user", parts: [{ text: userText }] }],
-            generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
-          }),
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // stay inside the 60 second function limit
+      if (Date.now() - started > 45000) break;
+
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+            signal: AbortSignal.timeout(15000),
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: SYSTEM }] },
+              contents: [{ role: "user", parts: [{ text: userText }] }],
+              generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+            }),
+          }
+        );
+
+        if (!res.ok) {
+          const detail = await res.text().catch(() => "");
+          console.error(`Gemini ${model} returned ${res.status}:`, detail.slice(0, 500));
+          if (res.status === 429) {
+            rateLimited = true;
+            break; // try next model
+          }
+          if (res.status === 503) {
+            busy = true;
+            if (attempt === 0) {
+              await sleep(1500);
+              continue; // retry the same model once
+            }
+          }
+          break; // 404 or other error: next model
         }
-      );
 
-      if (!res.ok) {
-        const detail = await res.text().catch(() => "");
-        let msg = "";
-        try {
-          msg = JSON.parse(detail)?.error?.message || "";
-        } catch {}
-        console.error(`Gemini ${model} returned ${res.status}:`, detail.slice(0, 500));
-        tried.push(`${model}: ${res.status} ${msg}`.slice(0, 160));
-        if (res.status === 429) rateLimited = true;
-        lastErr = `The AI service did not accept the request.`;
-        continue;
+        const data = await res.json();
+        const raw = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+        const claims = verifyClaims(parseClaims(raw), sources);
+        return NextResponse.json({ claims, model });
+      } catch (e) {
+        console.error(`Gemini ${model} failed:`, e?.name, e?.message);
+        if (e?.name === "TimeoutError") busy = true;
+        else unreadable = true;
+        break; // next model
       }
-
-      const data = await res.json();
-      const raw = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
-      const claims = verifyClaims(parseClaims(raw), sources);
-      return NextResponse.json({ claims, model });
-    } catch (e) {
-      lastErr =
-        e?.name === "TimeoutError"
-          ? "The AI took too long. Please try again."
-          : "The AI reply could not be read. Please try again.";
     }
   }
 
@@ -104,6 +121,18 @@ export async function POST(req) {
       { status: 429 }
     );
   }
-  const details = tried.length ? " Details: " + tried.join(" | ") : "";
-  return NextResponse.json({ error: lastErr + details }, { status: 502 });
+  if (busy) {
+    return NextResponse.json(
+      { error: "The AI service is busy right now. Please try again in a moment, or use the offline sample." },
+      { status: 503 }
+    );
+  }
+  return NextResponse.json(
+    {
+      error: unreadable
+        ? "The AI reply could not be read. Please try again."
+        : "The AI service could not process this request. Please try again, or use the offline sample.",
+    },
+    { status: 502 }
+  );
 }
