@@ -3,7 +3,7 @@
 
 **Evidence-linked. Permission-aware. Human-verified knowledge handover.**
 
-Built solo by **Sirisha Arora** for the **CodePuneThinkers Hackathon — Round 3 Final**.
+Built solo by **Sirisha Arora** 
 
 When an employee leaves a team, their knowledge shouldn't leave with them. Yet critical decisions, technical context, unresolved issues and project dependencies are often scattered across notes, tasks, conversations and repositories.
 
